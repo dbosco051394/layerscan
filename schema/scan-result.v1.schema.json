@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/layerscan/schema/v1/scan-result.json",
+  "title": "LayerScan scan result (DRAFT)",
+  "description": "DRAFT normalized result of a layer-aware container image scan. Fields marked 'provisional' must be confirmed against real tool output in the spike (docs/SPIKE.md) before this schema is frozen. Replace the $id with the real repository URL once the project name is final.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tool", "scan", "image", "scanners", "findings", "summary", "verdict"],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Increment on any breaking change."
+    },
+    "tool": { "$ref": "#/$defs/toolInfo" },
+    "scan": { "$ref": "#/$defs/scanInfo" },
+    "image": { "$ref": "#/$defs/image" },
+    "scanners": {
+      "type": "array",
+      "description": "One entry per underlying tool run. Scanner names are open strings so new tools can be added without a schema change.",
+      "items": { "$ref": "#/$defs/scannerRun" }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Non-fatal issues that affect confidence, e.g. a scanner skipping base-layer secret detection.",
+      "items": { "$ref": "#/$defs/warning" }
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "verdict": { "$ref": "#/$defs/verdict" }
+  },
+
+  "$defs": {
+    "dateTime": { "type": "string", "format": "date-time" },
+    "sha256": {
+      "type": ["string", "null"],
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "severity": {
+      "enum": ["critical", "high", "medium", "low", "negligible", "unknown"],
+      "description": "Normalized, lowercase. Each scanner's native value is preserved in found_by[].native_severity."
+    },
+    "category": {
+      "enum": ["vulnerability", "secret", "misconfiguration", "hygiene"]
+    },
+    "status": {
+      "enum": ["active", "shadowed", "unknown"],
+      "description": "active: present in the final merged filesystem. shadowed: present in a lower layer, removed or overwritten by a later layer, but still shipped inside the image. unknown: the tool did not provide enough information."
+    },
+
+    "toolInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "commit": { "type": ["string", "null"] }
+      }
+    },
+
+    "scanInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started_at", "finished_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "started_at": { "$ref": "#/$defs/dateTime" },
+        "finished_at": { "$ref": "#/$defs/dateTime" },
+        "duration_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "digest", "platform", "layers"],
+      "properties": {
+        "reference": { "type": "string", "description": "The image reference as requested by the user." },
+        "digest": { "$ref": "#/$defs/sha256", "description": "Manifest digest of the scanned image." },
+        "platform": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["os", "architecture"],
+          "properties": {
+            "os": { "type": "string" },
+            "architecture": { "type": "string" },
+            "variant": { "type": ["string", "null"] }
+          }
+        },
+        "layers": {
+          "type": "array",
+          "description": "Filesystem layers only, base first. History entries that create no layer (ENV, CMD, etc.) do not appear here; how they map to created_by is an open spike question.",
+          "items": { "$ref": "#/$defs/layer" }
+        }
+      }
+    },
+
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "diff_id", "size_bytes"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0, "description": "0 is the base-most layer." },
+        "diff_id": { "$ref": "#/$defs/sha256", "description": "Digest of the uncompressed layer. Proposed join key across tools (provisional)." },
+        "digest": { "$ref": "#/$defs/sha256", "description": "Digest of the compressed blob, when known." },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "created_by": { "type": ["string", "null"], "description": "Dockerfile instruction that produced the layer (from image history)." },
+        "hygiene": {
+          "type": ["object", "null"],
+          "description": "Provisional: shape depends on what Dive's JSON actually contains.",
+          "additionalProperties": false,
+          "properties": {
+            "wasted_bytes": { "type": ["integer", "null"], "minimum": 0 }
+          }
+        }
+      }
+    },
+
+    "scannerRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "status"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "status": { "enum": ["ok", "failed", "timeout", "skipped"] },
+        "scope": { "type": ["string", "null"], "description": "How the tool was invoked, e.g. 'all-layers' or 'squashed'." },
+        "exit_code": { "type": ["integer", "null"] },
+        "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "error": { "type": ["string", "null"] },
+        "database": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": ["string", "null"] },
+            "built_at": { "type": ["string", "null"], "format": "date-time" }
+          }
+        }
+      }
+    },
+
+    "foundBy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scanner", "severity"],
+      "properties": {
+        "scanner": { "type": "string" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "native_severity": { "type": ["string", "null"] },
+        "native_id": { "type": ["string", "null"] }
+      }
+    },
+
+    "layerAttribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index"],
+      "properties": {
+        "index": { "type": ["integer", "null"], "minimum": 0, "description": "Layer where the finding first appears. Null if no tool supplied layer data." },
+        "diff_id": { "$ref": "#/$defs/sha256" },
+        "created_by": { "type": ["string", "null"] },
+        "removed_in_index": { "type": ["integer", "null"], "minimum": 0, "description": "Layer that removed or overwrote it. Set only for shadowed findings, and only when determinable." }
+      }
+    },
+
+    "allowlist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_id", "reason", "expires_at", "expired"],
+      "properties": {
+        "entry_id": { "type": "string" },
+        "reason": { "type": "string" },
+        "expires_at": { "$ref": "#/$defs/dateTime" },
+        "expired": { "type": "boolean" }
+      }
+    },
+
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "severity", "status", "title", "found_by", "layer", "details"],
+      "properties": {
+        "id": { "type": "string", "description": "Stable fingerprint used to de-duplicate across scanners. Exact inputs are an open spike question." },
+        "category": { "$ref": "#/$defs/category" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "status": { "$ref": "#/$defs/status" },
+        "title": { "type": "string" },
+        "found_by": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/foundBy" } },
+        "layer": { "$ref": "#/$defs/layerAttribution" },
+        "allowlist": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/allowlist" }] },
+        "details": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "category": { "const": "vulnerability" } }, "required": ["category"] },
+          "then": { "properties": { "details": { "$ref": "#/$defs/vulnerabilityDetails" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "secret" } }, "required": ["category"] },
+          "then": { "properties": { "details": { "$ref": "#/$defs/secretDetails" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "misconfiguration" } }, "required": ["category"] },
+          "then": { "properties": { "details": { "$ref": "#/$defs/misconfigDetails" } } }
+        },
+        {
+          "if": { "properties": { "category": { "const": "hygiene" } }, "required": ["category"] },
+          "then": { "properties": { "details": { "$ref": "#/$defs/hygieneDetails" } } }
+        }
+      ]
+    },
+
+    "vulnerabilityDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vuln_id", "package"],
+      "properties": {
+        "vuln_id": { "type": "string" },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "package": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "type": { "type": ["string", "null"], "description": "Ecosystem, e.g. apk, deb, npm, gomod." },
+            "purl": { "type": ["string", "null"] },
+            "path": { "type": ["string", "null"] }
+          }
+        },
+        "fixed_version": { "type": ["string", "null"] },
+        "fix_state": { "enum": ["fixed", "not_fixed", "wont_fix", "unknown"] },
+        "cvss_score": { "type": ["number", "null"], "minimum": 0, "maximum": 10 },
+        "url": { "type": ["string", "null"] }
+      }
+    },
+
+    "secretDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "path", "match_redacted"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "secret_type": { "type": ["string", "null"] },
+        "path": { "type": "string" },
+        "start_line": { "type": ["integer", "null"], "minimum": 1 },
+        "end_line": { "type": ["integer", "null"], "minimum": 1 },
+        "match_redacted": { "type": "string", "description": "MUST NOT contain the secret value. Redact before the result leaves the scanner process, and never log the raw match." },
+        "fingerprint": { "type": ["string", "null"], "description": "Optional one-way hash for tracking the same secret across scans." }
+      }
+    },
+
+    "misconfigDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "message"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "message": { "type": "string" },
+        "path": { "type": ["string", "null"] },
+        "resolution": { "type": ["string", "null"] }
+      }
+    },
+
+    "hygieneDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "message"],
+      "properties": {
+        "rule_id": { "type": "string", "description": "e.g. wasted_space, large_layer, removed_file_retained." },
+        "message": { "type": "string" },
+        "path": { "type": ["string", "null"] },
+        "metrics": { "type": "object", "additionalProperties": { "type": "number" } }
+      }
+    },
+
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "scanner": { "type": ["string", "null"] }
+      }
+    },
+
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_findings", "by_severity", "by_status", "by_category", "agreement"],
+      "properties": {
+        "total_findings": { "type": "integer", "minimum": 0 },
+        "by_severity": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/severity" },
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "by_status": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/status" },
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "by_category": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/category" },
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "agreement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["found_by_multiple", "found_by_single"],
+          "properties": {
+            "found_by_multiple": { "type": "integer", "minimum": 0 },
+            "found_by_single": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "complete"],
+      "properties": {
+        "result": { "enum": ["pass", "fail", "error"] },
+        "complete": { "type": "boolean", "description": "False when any scanner did not finish with status ok. Whether an incomplete scan can pass is a policy decision." },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": ["string", "null"] }
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rule_id", "message"],
+            "properties": {
+              "rule_id": { "type": "string" },
+              "message": { "type": "string" },
+              "finding_ids": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

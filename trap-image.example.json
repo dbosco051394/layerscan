@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "tool": {
+    "name": "layerscan",
+    "version": "0.0.0-example"
+  },
+  "scan": {
+    "id": "example-do-not-use",
+    "started_at": "2026-11-18T18:00:00Z",
+    "finished_at": "2026-11-18T18:00:42Z",
+    "duration_ms": 42000
+  },
+  "image": {
+    "reference": "registry.example.com/demo/trap:1.0",
+    "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "platform": {
+      "os": "linux",
+      "architecture": "amd64",
+      "variant": null
+    },
+    "layers": [
+      {
+        "index": 0,
+        "diff_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "size_bytes": 7800000,
+        "created_by": "ADD rootfs.tar / # base image",
+        "hygiene": null
+      },
+      {
+        "index": 1,
+        "diff_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "size_bytes": 120,
+        "created_by": "RUN echo AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE > /app/.env",
+        "hygiene": null
+      },
+      {
+        "index": 2,
+        "diff_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "size_bytes": 40,
+        "created_by": "RUN rm /app/.env",
+        "hygiene": {
+          "wasted_bytes": 120
+        }
+      },
+      {
+        "index": 3,
+        "diff_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        "size_bytes": 2400000,
+        "created_by": "RUN apk add --no-cache examplelib",
+        "hygiene": null
+      }
+    ]
+  },
+  "scanners": [
+    {
+      "name": "trivy",
+      "version": "0.0.0",
+      "status": "ok",
+      "scope": "all-layers",
+      "exit_code": 0,
+      "duration_ms": 9000,
+      "error": null,
+      "database": {
+        "version": "example",
+        "built_at": "2026-11-18T06:00:00Z"
+      }
+    },
+    {
+      "name": "syft",
+      "version": "0.0.0",
+      "status": "ok",
+      "scope": "all-layers",
+      "exit_code": 0,
+      "duration_ms": 6000,
+      "error": null,
+      "database": null
+    },
+    {
+      "name": "grype",
+      "version": "0.0.0",
+      "status": "ok",
+      "scope": "sbom-input",
+      "exit_code": 0,
+      "duration_ms": 7000,
+      "error": null,
+      "database": {
+        "version": "example",
+        "built_at": "2026-11-18T05:00:00Z"
+      }
+    },
+    {
+      "name": "dive",
+      "version": "0.0.0",
+      "status": "ok",
+      "scope": null,
+      "exit_code": 0,
+      "duration_ms": 3000,
+      "error": null,
+      "database": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "fp-vuln-0001",
+      "category": "vulnerability",
+      "severity": "high",
+      "status": "active",
+      "title": "CVE-2099-0001 in examplelib 1.0.0",
+      "found_by": [
+        {
+          "scanner": "trivy",
+          "severity": "high",
+          "native_severity": "HIGH",
+          "native_id": "CVE-2099-0001"
+        },
+        {
+          "scanner": "grype",
+          "severity": "high",
+          "native_severity": "High",
+          "native_id": "CVE-2099-0001"
+        }
+      ],
+      "layer": {
+        "index": 3,
+        "diff_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "created_by": "RUN apk add --no-cache examplelib",
+        "removed_in_index": null
+      },
+      "allowlist": null,
+      "details": {
+        "vuln_id": "CVE-2099-0001",
+        "aliases": [],
+        "package": {
+          "name": "examplelib",
+          "version": "1.0.0",
+          "type": "apk",
+          "purl": null,
+          "path": null
+        },
+        "fixed_version": "1.0.1",
+        "fix_state": "fixed",
+        "cvss_score": 8.1,
+        "url": null
+      }
+    },
+    {
+      "id": "fp-secret-0001",
+      "category": "secret",
+      "severity": "critical",
+      "status": "shadowed",
+      "title": "AWS access key ID in removed file",
+      "found_by": [
+        {
+          "scanner": "trivy",
+          "severity": "critical",
+          "native_severity": "CRITICAL",
+          "native_id": "aws-access-key-id"
+        }
+      ],
+      "layer": {
+        "index": 1,
+        "diff_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "created_by": "RUN echo AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE > /app/.env",
+        "removed_in_index": 2
+      },
+      "allowlist": null,
+      "details": {
+        "rule_id": "aws-access-key-id",
+        "secret_type": "AWS",
+        "path": "app/.env",
+        "start_line": 1,
+        "end_line": 1,
+        "match_redacted": "AWS_ACCESS_KEY_ID=********************",
+        "fingerprint": null
+      }
+    },
+    {
+      "id": "fp-hygiene-0001",
+      "category": "hygiene",
+      "severity": "low",
+      "status": "shadowed",
+      "title": "File removed in a later layer is still shipped",
+      "found_by": [
+        {
+          "scanner": "dive",
+          "severity": "low",
+          "native_severity": null,
+          "native_id": null
+        }
+      ],
+      "layer": {
+        "index": 1,
+        "diff_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "created_by": "RUN echo AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE > /app/.env",
+        "removed_in_index": 2
+      },
+      "allowlist": null,
+      "details": {
+        "rule_id": "removed_file_retained",
+        "message": "app/.env is deleted in layer 2 but remains in layer 1.",
+        "path": "app/.env",
+        "metrics": {
+          "wasted_bytes": 120
+        }
+      }
+    }
+  ],
+  "warnings": [],
+  "summary": {
+    "total_findings": 3,
+    "by_severity": {
+      "critical": 1,
+      "high": 1,
+      "low": 1
+    },
+    "by_status": {
+      "active": 1,
+      "shadowed": 2
+    },
+    "by_category": {
+      "vulnerability": 1,
+      "secret": 1,
+      "hygiene": 1
+    },
+    "agreement": {
+      "found_by_multiple": 1,
+      "found_by_single": 2
+    }
+  },
+  "verdict": {
+    "result": "fail",
+    "complete": true,
+    "policy": {
+      "name": "default",
+      "version": "0"
+    },
+    "reasons": [
+      {
+        "rule_id": "no-secrets-in-any-layer",
+        "message": "Secret found in layer 1 (removed in layer 2 but still shipped in the image).",
+        "finding_ids": [
+          "fp-secret-0001"
+        ]
+      },
+      {
+        "rule_id": "fail-on-high-with-fix",
+        "message": "High severity vulnerability with a fix available.",
+        "finding_ids": [
+          "fp-vuln-0001"
+        ]
+      }
+    ]
+  }
+}
