@@ -1,0 +1,5 @@
+# Keep shell scripts and Dockerfiles LF even when checked out on Windows,
+# otherwise `#!/usr/bin/env bash\r` fails inside Linux and Git Bash.
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
