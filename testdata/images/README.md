@@ -34,10 +34,11 @@ Then `scripts/export-archives.sh` writes `testdata/archives/<name>.tar` for each
 |---|---|---|
 | `vuln` | `alpine:3.12` | `sha256:c75ac27b49326926b803b9ed43bf088bc220d22556de1bc5f72d742c91398f69` |
 | `clean` | `gcr.io/distroless/static-debian12:nonroot` | `sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab` |
+| `trap`, `secret-base` | `alpine:3.20` (resolved to 3.20.10) | `sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc` |
 
-Both were looked up from the registry on 2026-11-18. The `vuln` digest is the index (manifest list) digest, so the Dockerfile resolves on any platform; its `linux/amd64` manifest is `sha256:cb64bbe7fa613666c234e1090e91427314ee18ec6420e9426cf4e7f314056813`.
+All were looked up from the registry on 2026-11-18. Each is the index (manifest list) digest, so the Dockerfile resolves on any platform; the `vuln` base's `linux/amd64` manifest is `sha256:cb64bbe7fa613666c234e1090e91427314ee18ec6420e9426cf4e7f314056813`. `base-secret` inherits its alpine layer through `secret-base`.
 
-`trap`, `secret-base`, and `base-secret` use `alpine:3.20` unpinned, exactly as SPIKE.md specifies for `trap`. Rebuilding later may pull a newer 3.20.x, so record the diff IDs of any archive that gets scanned.
+Pinning `trap` to a digest deviates from the "exactly as given" Dockerfile in SPIKE.md (the two `RUN` steps are unchanged). It was approved so rebuilds stay reproducible; see `docs/SPIKE-FINDINGS.md`.
 
 ## Environment used
 
